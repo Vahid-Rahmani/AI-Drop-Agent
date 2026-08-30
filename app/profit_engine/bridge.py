@@ -54,6 +54,7 @@ def calculate_market_supplier_profit(
     payment_fee: float | None,
     other_costs: float | None = 0,
     match_result: dict | None = None,
+    fee_result: dict | None = None,
 ) -> dict[str, Any]:
     """Convert supplier costs and calculate profit only for a reliable match."""
     if not match_result:
@@ -70,6 +71,18 @@ def calculate_market_supplier_profit(
     if not target_currency:
         return _blocked("market_currency_unknown", match_result)
     target_currency = str(target_currency).upper()
+
+    if fee_result is not None:
+        if fee_result.get("fee_calculation_allowed") is not True or fee_result.get("total_marketplace_fee") is None:
+            return _blocked("ebay_fee_unknown", match_result)
+        fee_currency = str(fee_result.get("currency") or "").upper()
+        if fee_currency != target_currency:
+            return _blocked("ebay_fee_currency_mismatch", match_result)
+        marketplace_fee = fee_result["total_marketplace_fee"]
+    elif marketplace_fee is None:
+        return _blocked("ebay_fee_unknown", match_result)
+    if payment_fee is None:
+        return _blocked("payment_fee_unknown", match_result)
 
     market_price = _value(market_product, "price", "selling_price")
     supplier_price = _value(supplier_product, "price", "sellPrice", "nowPrice", "productPrice")
@@ -138,6 +151,10 @@ def calculate_market_supplier_profit(
         "shipping_original_cost": shipping_conversion["original_amount"],
         "shipping_original_currency": shipping_conversion["original_currency"],
         "shipping_converted_cost": shipping_conversion["converted_amount"],
+        "marketplace_fee": profit["marketplace_fee"],
+        "fee_source": fee_result.get("source") if fee_result else "caller-provided fee",
+        "fee_source_type": fee_result.get("source_type") if fee_result else "configured",
+        "fee_verified": fee_result.get("is_verified") if fee_result else False,
         "fx_rate_used": supplier_conversion["rate"] if supplier_conversion["rate"] != 1.0 else (
             shipping_conversion["rate"]
         ),

@@ -14,6 +14,7 @@ from langgraph.graph import END, START, StateGraph
 
 from app.decision_engine.engine import make_product_decision
 from app.fx.provider import FXProviderError, get_exchange_rate
+from app.fees.ebay import calculate_ebay_fees
 from app.market_hunter.scoring import score_products
 from app.market_hunter.sources.ebay import normalize_products, search_products as ebay_search
 from app.opportunity_hunter.state import OpportunityHunterState
@@ -205,6 +206,7 @@ def calculate_shipping_node(state: OpportunityHunterState) -> dict:
 def calculate_profit_node(state: OpportunityHunterState) -> dict:
     profits = dict(state.get("profit_results", {}))
     fx_results = dict(state.get("fx_results", {}))
+    ebay_fee_results = dict(state.get("ebay_fee_results", {}))
     errors = list(state.get("errors", []))
     for item in state.get("matches", []):
         market_id = item["market_product_id"]
@@ -219,6 +221,20 @@ def calculate_profit_node(state: OpportunityHunterState) -> dict:
             continue
         market = item["market_product"]
         supplier = verified["product"]
+        fee_mode = state.get("fee_mode", "UNKNOWN").upper()
+        fee_result = calculate_ebay_fees(
+            selling_price=market.get("price"),
+            currency=market.get("currency"),
+            category_id=market.get("category_id"),
+            shipping_charged_to_buyer=market.get("shipping_cost") or 0,
+            seller_plan=state.get("seller_plan"),
+            fee_rate=state.get("fee_rate") if fee_mode == "EXPLICIT" else None,
+            fixed_fee=state.get("fixed_fee") if fee_mode == "EXPLICIT" else None,
+        )
+        ebay_fee_results[market_id] = fee_result
+        if not fee_result["fee_calculation_allowed"]:
+            profits[market_id] = {"profit_calculation_allowed": False, "reason": "ebay_fee_unknown"}
+            continue
         pair = _fx_pair(supplier, market, shipping)
         rate: float | None = None
         if pair is not None:
@@ -247,11 +263,12 @@ def calculate_profit_node(state: OpportunityHunterState) -> dict:
                 payment_fee=state.get("payment_fee"),
                 other_costs=state.get("other_costs", 0),
                 match_result=match_result,
+                fee_result=fee_result,
             )
         except Exception as error:
             errors.append(_error("profit", market_id, _id(supplier), error))
             profits[market_id] = {"profit_calculation_allowed": False, "reason": str(error)}
-    return {"profit_results": profits, "fx_results": fx_results, "errors": errors}
+    return {"profit_results": profits, "fx_results": fx_results, "ebay_fee_results": ebay_fee_results, "errors": errors}
 
 
 def make_decisions_node(state: OpportunityHunterState) -> dict:
@@ -331,9 +348,9 @@ def _initial_state(query: str = "hoodie") -> OpportunityHunterState:
         "query": query,
         "market_products": [], "market_scores": {}, "supplier_products": [], "matches": [],
         "verified_suppliers": {}, "shipping_results": {}, "profit_results": {}, "decisions": {},
-        "ranked_results": [], "errors": [], "fx_rates": {}, "fx_mode": "LIVE", "fx_results": {},
-        "marketplace_fee": 0.0, "payment_fee": 0.0, "other_costs": 0.0,
-        "fees_are_test_configuration": True, "fixture_mode": False,
+        "ranked_results": [], "errors": [], "fx_rates": {}, "fx_mode": "LIVE", "fx_results": {}, "ebay_fee_results": {},
+        "marketplace_fee": None, "payment_fee": None, "other_costs": 0.0,
+        "fees_are_test_configuration": False, "fee_mode": "UNKNOWN", "fee_rate": None, "fixed_fee": None, "fixture_mode": False,
         "inventory_cache": {}, "shipping_cache": {},
     }
 
@@ -350,7 +367,7 @@ def _controlled_state() -> OpportunityHunterState:
         "shipping_options": [{"logistic_name": "GLS DE to DE", "shipping_cost": 0.0, "currency": None, "free_shipping": True, "delivery_days": "4-5"}],
     }
     state = _initial_state("hoodie")
-    state.update({"fixture_mode": True, "fx_mode": "EXPLICIT", "fx_rates": {"USD->EUR": 0.92}, "market_products": [market], "supplier_products": [supplier]})
+    state.update({"fixture_mode": True, "fx_mode": "EXPLICIT", "fx_rates": {"USD->EUR": 0.92}, "fee_mode": "EXPLICIT", "fee_rate": 10.0, "fixed_fee": 0.35, "payment_fee": 0.0, "market_products": [market], "supplier_products": [supplier]})
     return state
 
 
@@ -398,8 +415,18 @@ def _print_results(result: OpportunityHunterState) -> None:
         for pair, rate in result.get("fx_rates", {}).items():
             print(f"FX: {pair.replace('->', ' -> ')} = {rate}")
         print("Mode: EXPLICIT/TEST (not live FX)")
-    print("Marketplace Fee: 0.0 (Configured test value - NOT VERIFIED EBAY FEE)")
-    print("Payment Fee: 0.0 (Configured test value - NOT VERIFIED EBAY FEE)")
+    fee_results = result.get("ebay_fee_results", {})
+    if result.get("fee_mode", "UNKNOWN").upper() == "EXPLICIT":
+        fee = next(iter(fee_results.values()), {})
+        print(f"Marketplace Fee: {fee.get('total_marketplace_fee', 'UNKNOWN')}")
+        print("Fee Source: Configured eBay Germany fee profile")
+        print("Fee Verified: False")
+        print("Configured test value - NOT VERIFIED EBAY FEE")
+    else:
+        print("Marketplace Fee: UNKNOWN")
+        print("Fee Source: eBay fee data unavailable for exact account/category calculation")
+        print("Fee Verified: False")
+    print("Payment Fee: None (no separate verified payment fee; not double-counted)")
     counts = {decision: sum(item["decision"].get("decision") == decision for item in result.get("ranked_results", [])) for decision in DECISION_ORDER}
     print(f"\nDecision counts: {counts}")
     print(f"Errors: {result.get('errors', [])}")

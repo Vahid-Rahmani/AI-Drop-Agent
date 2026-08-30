@@ -18,10 +18,14 @@ class OpportunityHunterState(TypedDict, total=False):
     fx_rates: dict[str, float]
     fx_mode: str
     fx_results: dict[str, dict]
+    ebay_fee_results: dict[str, dict]
     marketplace_fee: float | None
     payment_fee: float | None
     other_costs: float | None
     fees_are_test_configuration: bool
+    fee_mode: str
+    fee_rate: float | None
+    fixed_fee: float | None
     fixture_mode: bool
 
     # Small in-run caches prevent duplicate CJ calls.
