@@ -1,1 +1,1 @@
-"""Explicit-rate foreign exchange conversion utilities."""
+"""Foreign exchange conversion and live provider utilities."""
