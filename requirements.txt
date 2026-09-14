@@ -23,6 +23,7 @@ orjson==3.12.0
 ormsgpack==1.12.2
 packaging==26.3
 pydantic==2.13.5
+pydantic-settings>=2.2,<3
 pydantic_core==2.46.5
 python-dotenv==1.2.3
 PyYAML==6.0.3
@@ -36,6 +37,9 @@ typing_extensions==4.16.0
 urllib3==2.7.0
 uuid_utils==0.17.0
 uvicorn==0.52.4
+pytest>=8,<9
+ruff>=0.6,<1
+psycopg[binary]>=3.2,<4
 websockets==16.1.1
 xxhash==4.0.1
 zstandard==0.25.0

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import math
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from typing import Any
 

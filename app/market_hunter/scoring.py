@@ -158,10 +158,11 @@ def calculate_demand_score(
     products: list[MarketProduct],
 ) -> float:
     """
-    Temporary demand proxy.
+    Search-result repetition signal.
 
-    For now, repeated product concepts in search
-    results count as evidence of marketplace demand.
+    Repeated product concepts in search results are a weak
+    discovery signal. They are deliberately kept separate from
+    verified sales demand and must never be presented as sales data.
 
     This is NOT true sales demand yet.
     """

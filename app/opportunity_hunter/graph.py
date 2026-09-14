@@ -22,7 +22,6 @@ from app.product_matcher.matcher import get_best_match, match_products
 from app.profit_engine.bridge import calculate_market_supplier_profit
 from app.supplier_hunter.cj_hunter import (
     calculate_supplier_score,
-    get_product_id,
     get_product_price,
     get_verified_de_inventory,
 )

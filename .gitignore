@@ -1,3 +1,13 @@
 .env
+.venv/
+.uv-cache/
+.uv-python/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+coverage.xml
+htmlcov/
+data/
 __pycache__/
 .venv/
