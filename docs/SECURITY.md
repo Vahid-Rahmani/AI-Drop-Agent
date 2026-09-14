@@ -10,3 +10,4 @@
 - Webhooks use `timestamp.body` HMAC-SHA256 signatures, a replay window, and a durable event-claim ledger. Provider dispatch remains intentionally narrow (`ebay` and `cj`).
 - Tool invocation checks the caller permission level before a handler runs. External and financial handlers additionally require policy approval; kill switch and budget checks remain deterministic.
 - `redact()` removes known secret fields recursively before diagnostics are emitted. Production logging must call this helper for request/response metadata.
+- The Admin UI uses short-lived HttpOnly SameSite session cookies, a separate CSRF token, no browser localStorage, masked/cleared secret inputs, restrictive CSP/security headers, and `Cache-Control: no-store` on all `/admin` routes.

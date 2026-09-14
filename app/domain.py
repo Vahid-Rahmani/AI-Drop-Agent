@@ -142,6 +142,8 @@ class ApprovalRequest(BaseModel):
     amount: Decimal = Field(default=Decimal("0"), ge=0)
     status: ApprovalStatus = ApprovalStatus.PENDING
     decided_by: str | None = None
+    requested_by: str = "policy_engine"
+    risk: str | None = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
@@ -172,6 +174,7 @@ class Order(BaseModel):
     product_id: str
     quantity: int = Field(default=1, ge=1)
     amount: Decimal = Field(ge=0)
+    supplier: str | None = None
     currency: str = "EUR"
     status: OrderStatus = OrderStatus.CREATED
     tracking_number: str | None = None

@@ -28,6 +28,10 @@ CREATE TABLE IF NOT EXISTS webhook_events (
     event_id TEXT PRIMARY KEY,
     received_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+CREATE TABLE IF NOT EXISTS admin_settings (
+    setting_key TEXT PRIMARY KEY,
+    payload JSONB NOT NULL
+);
 """
 
 
@@ -121,3 +125,16 @@ class PostgresStore:
                 (event_id,),
             )
             return cursor.rowcount == 1
+
+    def save_setting(self, key: str, payload: dict) -> None:
+        with self._lock, self._connection() as connection:
+            connection.execute(
+                "INSERT INTO admin_settings(setting_key, payload) VALUES (%s, %s::jsonb) "
+                "ON CONFLICT (setting_key) DO UPDATE SET payload = EXCLUDED.payload",
+                (key, json.dumps(payload)),
+            )
+
+    def load_settings(self) -> dict[str, dict]:
+        with self._lock, self._connection() as connection:
+            rows = connection.execute("SELECT setting_key, payload FROM admin_settings").fetchall()
+        return {str(row[0]): row[1] for row in rows}

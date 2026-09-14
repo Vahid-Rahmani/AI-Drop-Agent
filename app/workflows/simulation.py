@@ -103,7 +103,13 @@ class SimulationWorkflow:
         self.audit.record(EventType.LISTING_DRAFTED, self.listing.name, workflow_id, output_refs=[market["product_id"]])
         self.audit.record(EventType.EXPERIMENT_CREATED, self.marketing.name, workflow_id, output_refs=[str(experiment.experiment_id)])
 
-        order = self.orders.create(Order(product_id=market["product_id"], amount=Decimal(str(market["price"]))))
+        order = self.orders.create(
+            Order(
+                product_id=market["product_id"],
+                amount=Decimal(str(market["price"])),
+                supplier=str(supplier.get("supplier", "simulation-fixture")),
+            )
+        )
         self.audit.record(EventType.ORDER_RECEIVED, "simulation", workflow_id, output_refs=[str(order.order_id)])
         for status in (
             OrderStatus.PAYMENT_CONFIRMED,

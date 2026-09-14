@@ -28,12 +28,13 @@ class Brain:
 
     def __init__(self, settings: Settings | None = None, provider: BrainProvider | None = None) -> None:
         self.settings = settings or Settings()
-        self.provider = provider or self._provider_from_settings()
-        self.policy = PolicyEngine(self.settings.policy())
         if self.settings.database_url.startswith(("postgresql://", "postgres://")):
             self.store = PostgresStore(self.settings.database_url)
         else:
             self.store = SQLiteStore(self.settings.database_path)
+        self._apply_persisted_settings()
+        self.provider = provider or self._provider_from_settings()
+        self.policy = PolicyEngine(self.settings.policy())
         self.approvals = ApprovalQueue(store=self.store)
         self.webhook_verifier = (
             WebhookVerifier(self.settings.webhook_secret, replay_guard=self.store.claim_webhook_event)
@@ -41,6 +42,7 @@ class Brain:
             else None
         )
         self.workflow = SimulationWorkflow(policy=self.policy, provider=self.provider, store=self.store)
+        self.last_simulation: dict | None = None
         self.marketplace = EbayMarketplaceProvider(
             client_id=self.settings.ebay_client_id,
             client_secret=self.settings.ebay_client_secret,
@@ -167,7 +169,73 @@ class Brain:
     def run_simulation(self, query: str = "hoodie") -> dict:
         if self.settings.app_mode.value != "simulation":
             raise RuntimeError("simulation endpoint requires APP_MODE=simulation")
-        return self.workflow.run(query)
+        self.last_simulation = self.workflow.run(query)
+        return self.last_simulation
+
+    def reload_provider(self) -> None:
+        self.provider = self._provider_from_settings()
+        self.workflow.provider = self.provider
+
+    def refresh_policy(self) -> None:
+        self.policy = PolicyEngine(self.settings.policy())
+        self.workflow.policy = self.policy
+
+    def _apply_persisted_settings(self) -> None:
+        settings = self.store.load_settings()
+        finance = settings.get("finance_config", {})
+        for key, attribute in {
+            "version": "finance_config_version",
+            "verified": "finance_config_verified",
+            "vat_rate": "default_vat_rate",
+            "marketplace_fee_rate": "marketplace_fee_rate",
+            "payment_fee_rate": "payment_fee_rate",
+            "advertising_rate": "advertising_rate",
+            "expected_return_rate": "expected_return_rate",
+            "shipping_cost": "shipping_cost_eur",
+            "operating_cost": "operating_cost_eur",
+            "discount_rate": "discount_rate",
+        }.items():
+            if key in finance and attribute != "finance_config_version":
+                setattr(self.settings, attribute, float(finance[key]) if key != "verified" else bool(finance[key]))
+            elif key in finance:
+                setattr(self.settings, attribute, str(finance[key]))
+        integration = settings.get("integration_config", {})
+        for key, attribute in {
+            "ebay_environment": "ebay_environment",
+            "ebay_client_id": "ebay_client_id",
+            "cj_base_url": "cj_base_url",
+            "model_provider": "model_provider",
+            "openai_model": "openai_model",
+            "openai_base_url": "openai_base_url",
+            "local_model_name": "local_model_name",
+            "local_model_base_url": "local_model_base_url",
+            "local_model_timeout": "local_model_timeout",
+        }.items():
+            if key in integration:
+                setattr(self.settings, attribute, integration[key])
+        policy = settings.get("policy_config", {})
+        for key, attribute in {
+            "min_contribution_margin_percent": "min_contribution_margin_percent",
+            "max_daily_spend_eur": "max_daily_spend_eur",
+            "max_experiment_loss_eur": "max_experiment_loss_eur",
+            "max_product_exposure_eur": "max_product_exposure_eur",
+        }.items():
+            if key in policy:
+                setattr(self.settings, attribute, float(policy[key]))
+        if "kill_switch" in settings:
+            self.settings.kill_switch = bool(settings["kill_switch"].get("enabled", False))
+
+    def reload_integrations(self) -> None:
+        self.marketplace = EbayMarketplaceProvider(
+            client_id=self.settings.ebay_client_id,
+            client_secret=self.settings.ebay_client_secret,
+            refresh_token=self.settings.ebay_refresh_token,
+            sandbox=self.settings.ebay_environment.lower() != "production",
+        )
+        self.supplier_provider = CJSupplierProvider(
+            access_token=self.settings.cj_access_token or self.settings.cj_api_key,
+            base_url=self.settings.cj_base_url,
+        )
 
     def storage_health(self) -> bool:
         return self.store.healthcheck()

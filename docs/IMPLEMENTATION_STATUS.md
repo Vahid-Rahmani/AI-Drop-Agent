@@ -23,5 +23,6 @@
 | Marketplace/supplier adapters | DONE | eBay inventory/offer/order sync and CJ search/inventory/shipping/order/tracking/cancel boundaries are implemented with fixtures, retries, normalized errors, and idempotency. |
 | Finance configuration | DONE | VAT, marketplace/payment/advertising fees, returns, shipping, operating cost, discounts, and explicit verification are validated from settings. |
 | Deployment and worker readiness | DONE | Fail-fast production validator, migration startup, health/readiness checks, Docker healthcheck, and one-shot worker runner exist. |
+| Admin Web UI | DONE | FastAPI/Jinja2 operator panel with dashboard, setup, integrations, business settings, simulation, products, orders, approvals, agent runs, metrics, secure session, CSRF, and kill-switch confirmation. |
 | Live marketplace/supplier execution | BLOCKED_EXTERNAL | Final execution still requires approved eBay/CJ accounts, credentials, account-specific policies, and a managed PostgreSQL deployment. |
 | Authenticated production control plane | DONE | Live-mode bootstrap admin key, signed multi-user bearer tokens, RBAC, protected reads, protected writes, and approval-gated tools are implemented. |

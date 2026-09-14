@@ -83,6 +83,10 @@ uvicorn app.main:app --reload
 
 Then open `http://localhost:8000/docs` and call `POST /simulate`.
 
+## Admin UI
+
+The internal operator panel is available at `http://localhost:8000/admin`. Set `ADMIN_API_KEY` and a 32-character `AUTH_SECRET` in the environment, then sign in with the bootstrap admin key. The browser receives only a short-lived HttpOnly session cookie; secrets submitted through the integration form are never stored or returned without a real secret-manager connector.
+
 ## Running checks
 
 ```bash

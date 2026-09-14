@@ -60,6 +60,10 @@ class SQLiteStore:
                     event_id TEXT PRIMARY KEY,
                     received_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
                 );
+                CREATE TABLE IF NOT EXISTS admin_settings (
+                    setting_key TEXT PRIMARY KEY,
+                    payload TEXT NOT NULL
+                );
                 """
             )
 
@@ -118,3 +122,19 @@ class SQLiteStore:
                 (event_id,),
             )
             return cursor.rowcount == 1
+
+    def save_setting(self, key: str, payload: dict) -> None:
+        import json
+
+        with self._lock, self._connection() as connection:
+            connection.execute(
+                "INSERT OR REPLACE INTO admin_settings(setting_key, payload) VALUES (?, ?)",
+                (key, json.dumps(payload)),
+            )
+
+    def load_settings(self) -> dict[str, dict]:
+        import json
+
+        with self._lock, self._connection() as connection:
+            rows = connection.execute("SELECT setting_key, payload FROM admin_settings").fetchall()
+        return {row["setting_key"]: json.loads(row["payload"]) for row in rows}

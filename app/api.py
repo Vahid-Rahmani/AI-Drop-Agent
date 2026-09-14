@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import secrets
 import json
+from pathlib import Path
 from uuid import UUID
 
 from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from app.brain import Brain
+from app.admin_ui import create_admin_router
 from app.core.economics import calculate_unit_economics
 from app.domain import ApprovalStatus, EconomicsInput, OrderStatus, PermissionLevel
 from app.security.auth import AuthenticationError, Principal, Role, TokenService, require_role
@@ -45,6 +48,27 @@ class TokenRequest(BaseModel):
 
 brain = Brain()
 app = FastAPI(title="AI Drop Agent", version="0.2.0")
+app.mount(
+    "/admin/static",
+    StaticFiles(directory=str(Path(__file__).with_name("ui") / "static")),
+    name="admin-static",
+)
+app.include_router(create_admin_router(brain))
+
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    if request.url.path == "/admin" or request.url.path.startswith("/admin/"):
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; "
+            "connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'"
+        )
+    return response
 
 
 def require_admin(x_admin_api_key: str | None, authorization: str | None = None) -> None:
